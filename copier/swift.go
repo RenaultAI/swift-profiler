@@ -66,7 +66,7 @@ func (c *swiftCopier) Setup() error {
 }
 
 // Write implements Copier.Write.
-func (c *swiftCopier) Copy(sourcePath, destinationContainer string) error {
+func (c *swiftCopier) Copy(sourcePath, destinationContainer string, checksum *string) error {
 	// Open the file.
 	sourceFile, err := os.Open(sourcePath)
 	if err != nil {
@@ -76,7 +76,12 @@ func (c *swiftCopier) Copy(sourcePath, destinationContainer string) error {
 
 	// Prepare for the upload.
 	objectName := filepath.Base(sourcePath)
-	options := objects.CreateOpts{ContentType: "application/octet-stream", Content: sourceFile}
+	var options objects.CreateOpts
+	if checksum == nil {
+		options = objects.CreateOpts{ContentType: "application/octet-stream", Content: sourceFile}
+	} else {
+		options = objects.CreateOpts{ContentType: "application/octet-stream", Content: sourceFile, ETag: *checksum}
+	}
 
 	// Execute the upload.
 	_, err = objects.Create(&c.objectStorageClient, destinationContainer, objectName, options).Extract()

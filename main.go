@@ -1,7 +1,9 @@
 package main
 
 import (
+	"crypto/md5"
 	"flag"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -15,38 +17,19 @@ import (
 )
 
 const defaultGoroutineCount = 16
-const defaultDurationInSecond = 5
 const defaultInputDirectory = "/tmp/benchmark-test"
 const defaultDestinationContainer = "benchmark-test"
-
-func copyFile(srcPath, destPath string) (int64, error) {
-	in, err := os.Open(srcPath)
-	if err != nil {
-		return 0, err
-	}
-	defer in.Close()
-
-	out, err := os.Create(destPath)
-	if err != nil {
-		return 0, err
-	}
-	defer out.Close()
-
-	size, err := io.Copy(out, in)
-	if err != nil {
-		return 0, err
-	}
-
-	return size, nil
-}
+const defaultPrecomputeChecksum = true
 
 func main() {
 	var goroutineCount int
 	var inputDirectory, destinationContainer string
+	var precomputeChecksum bool
 
 	flag.IntVar(&goroutineCount, "concurrency", defaultGoroutineCount, "Number of goroutines")
 	flag.StringVar(&inputDirectory, "input-dir", defaultInputDirectory, "Input directory")
 	flag.StringVar(&destinationContainer, "dest-prefix", defaultDestinationContainer, "Destination Swift container name")
+	flag.BoolVar(&precomputeChecksum, "precompute-checksum", defaultPrecomputeChecksum, "Pre-compute checksum beforehand")
 	flag.Parse()
 
 	files, err := ioutil.ReadDir(inputDirectory)
@@ -59,6 +42,29 @@ func main() {
 		log.Fatal(err)
 	}
 
+	// Pre-compute md5 checksums and pass them to the copier.
+	checksums := make(map[string]string, len(files))
+	if precomputeChecksum {
+		log.Printf("Precomputing checksum...\n")
+		for _, file := range files {
+			path := filepath.Join(inputDirectory, file.Name())
+			f, err := os.Open(path)
+			if err != nil {
+				log.Fatal(err)
+			}
+			defer f.Close()
+
+			h := md5.New()
+			if _, err := io.Copy(h, f); err != nil {
+				log.Fatal(err)
+			}
+
+			checksums[path] = fmt.Sprintf("%x", h.Sum(nil))
+		}
+	} else {
+		log.Printf("Letting Swift compute checksum...\n")
+	}
+
 	var wg sync.WaitGroup
 	fileChannel := make(chan string)
 
@@ -67,7 +73,12 @@ func main() {
 		wg.Add(1)
 		go func() {
 			for path := range fileChannel {
-				if err := swiftClient.Copy(path, destinationContainer); err != nil {
+				var md5 *string
+				if precomputeChecksum {
+					sum := checksums[path]
+					md5 = &sum
+				}
+				if err := swiftClient.Copy(path, destinationContainer, md5); err != nil {
 					log.Printf("Swift copy error: %s\n", err)
 				}
 				// log.Printf(path)
@@ -80,7 +91,8 @@ func main() {
 	byteCount, fileCount := int64(0), 0
 	start := time.Now()
 	for _, file := range files {
-		fileChannel <- filepath.Join(inputDirectory, file.Name())
+		path := filepath.Join(inputDirectory, file.Name())
+		fileChannel <- path
 		byteCount += file.Size()
 		fileCount++
 	}
