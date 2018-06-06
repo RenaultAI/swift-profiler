@@ -1,42 +1,33 @@
 package copier
 
 import (
-	"errors"
 	"fmt"
-	"strconv"
+	"log"
+	"os"
+	"path/filepath"
 
 	gophercloud "github.com/gophercloud/gophercloud"
 	openstack "github.com/gophercloud/gophercloud/openstack"
+	"github.com/gophercloud/gophercloud/openstack/objectstorage/v1/containers"
 	objects "github.com/gophercloud/gophercloud/openstack/objectstorage/v1/objects"
-
-	"github.robot.car/cruise/gofer/conf"
-	"github.robot.car/cruise/gofer/file"
 )
+
+const defaultContainer = "benchmark-test"
 
 type swiftCopier struct {
 	objectStorageClient gophercloud.ServiceClient
 }
 
-// NewSwiftCopier returns new Copier that copies into Swift.
-func NewSwiftCopier() Copier {
+// NewSwiftCopier returns new a Swift client.
+func NewSwiftCopier() *swiftCopier {
 	return &swiftCopier{}
 }
 
 // Setup implements Copier.Setup.
 func (c *swiftCopier) Setup() error {
-	spec, err := conf.Initialize()
+	authOptions, err := openstack.AuthOptionsFromEnv()
 	if err != nil {
-		return fmt.Errorf("Conf initialization failed: %v", err)
-	}
-
-	if spec.SwiftUsername == "" || spec.SwiftPassword == "" || spec.SwiftAuthUrl == "" {
-		return fmt.Errorf("Username, API key and authentication URL are required")
-	}
-
-	authOptions := gophercloud.AuthOptions{
-		IdentityEndpoint: spec.SwiftAuthUrl,
-		Username:         spec.SwiftUsername,
-		Password:         spec.SwiftPassword,
+		return err
 	}
 
 	// Pass authentication options to get a ProviderClient.
@@ -54,84 +45,63 @@ func (c *swiftCopier) Setup() error {
 		return fmt.Errorf("Could not create a Swift objectStorageClient: %v", err)
 	}
 
+	// Pre-create the container if it doesn't exist.
+	metadata, err := containers.Get(objectStorageClient, defaultContainer).ExtractMetadata()
+	if _, ok := err.(gophercloud.ErrDefault404); ok {
+		log.Printf("Creating swift container %s\n", defaultContainer)
+		if _, err = containers.Create(objectStorageClient, defaultContainer, nil).Extract(); err != nil {
+			return err
+		}
+	}
+
+	metadata, err = containers.Get(objectStorageClient, defaultContainer).ExtractMetadata()
+	if err != nil {
+		return err
+	}
+	log.Printf("Swift container metadata: %+v\n", metadata)
+
 	c.objectStorageClient = *objectStorageClient
 
 	return nil
 }
 
-// DestinationPath implements Copier.DestinationPath.
-func (c *swiftCopier) DestinationPath(checksums map[string]string, readOnly bool) string {
-	return checksums["sha1"]
-}
-
-// QuarantinePath implements Copier.QuarantinePath.
-// This is identical to DestinationPath since quarantine files
-// will be placed in a different container.
-func (c *swiftCopier) QuarantinePath(checksums map[string]string) string {
-	return destinationPath("", checksums["sha1"], false)
-}
-
 // Write implements Copier.Write.
-func (c *swiftCopier) Write(io file.IO, checksums map[string]string, readOnly bool) error {
-	return c.write(io, false, checksums)
-}
-
-// WriteQuarantine implements Copier.WriteQuarantine.
-func (c *swiftCopier) WriteQuarantine(io file.IO, checksums map[string]string) error {
-	return c.write(io, true, checksums)
-}
-
-func containerName(checksum string, quarantine bool) string {
-	if quarantine {
-		return "quarantine"
-	}
-	return "bagstore-" + checksum[:4]
-}
-
-func objectName(copier Copier, quarantine bool, checksums map[string]string) string {
-	if quarantine {
-		return copier.QuarantinePath(checksums)
-	} else {
-		return copier.DestinationPath(checksums, false)
-	}
-
-}
-
-// Internal copier function called by either Write or WriteQuarantine.
-func (c *swiftCopier) write(io file.IO, quarantine bool, checksums map[string]string) error {
+func (c *swiftCopier) Copy(sourcePath, destinationContainer string) error {
 	// Open the file.
-	fileObj, err := io.Open()
+	sourceFile, err := os.Open(sourcePath)
 	if err != nil {
 		return err
 	}
-	defer fileObj.Close()
+	defer sourceFile.Close()
 
 	// Prepare for the upload.
-	containerName := containerName(checksums["sha1"], quarantine)
-	objectName := objectName(c, quarantine, checksums)
-	options := objects.CreateOpts{ContentType: "application/octet-stream", Content: fileObj}
+	objectName := filepath.Base(sourcePath)
+	options := objects.CreateOpts{ContentType: "application/octet-stream", Content: sourceFile}
 
 	// Execute the upload.
-	createHeader, err := objects.Create(&c.objectStorageClient, containerName, objectName, options).Extract()
-	if err != nil {
-		return err
-	} else if createHeader.ETag != checksums["md5"] {
-		return errors.New("md5 received from Swift API does not match md5 of uploaded file.")
-	}
-	return nil
+	_, err = objects.Create(&c.objectStorageClient, destinationContainer, objectName, options).Extract()
+	return err
+
+	// TODO: perform checksum check later.
+	// if err != nil {
+	// return err
+	// } else if createHeader.ETag != checksums["md5"] {
+	// return errors.New("md5 received from Swift API does not match md5 of uploaded file.")
+	// }
+	// return nil
 }
 
 // Size implements Copier.Size.
-func (c *swiftCopier) Size(checksums map[string]string, readOnly bool, quarantine bool) (int64, error) {
-	containerName := containerName(checksums["sha1"], quarantine)
-	objectName := objectName(c, quarantine, checksums)
-	result := objects.Get(&c.objectStorageClient, containerName, objectName, nil)
+// func (c *swiftCopier) Size(checksums map[string]string, readOnly bool, quarantine bool) (int64, error) {
+// containerName := containerName(checksums["sha1"], quarantine)
+// objectName := objectName(c, quarantine, checksums)
+// result := objects.Get(&c.objectStorageClient, containerName, objectName, nil)
 
-	var contentLengthHeader struct {
-		ContentLength string `json:"Content-Length"`
-	}
-	err := result.ExtractInto(&contentLengthHeader)
+// var contentLengthHeader struct {
+// ContentLength string `json:"Content-Length"`
+// }
+// err := result.ExtractInto(&contentLengthHeader)
 
-	contentLength, err := strconv.ParseInt(contentLengthHeader.ContentLength, 10, 64)
-	return contentLength, err
-}
+// contentLength, err := strconv.ParseInt(contentLengthHeader.ContentLength, 10, 64)
+// return contentLength, err
+// }

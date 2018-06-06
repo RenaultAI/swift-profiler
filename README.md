@@ -1,6 +1,8 @@
 # Swift Profiler
 
 ```sh
+$ go get
+$ export 
 $ go run main.go -concurrency=16 -input-dir=/tmp/benchmark-test
 2018/06/06 11:35:01 Spawning 16 goroutines to run
 2018/06/06 11:35:01 Copying 2 files concurrently

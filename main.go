@@ -11,11 +11,13 @@ import (
 	"time"
 
 	humanize "github.com/dustin/go-humanize"
+	"github.robot.car/cruise/swift-profiler/copier"
 )
 
 const defaultGoroutineCount = 16
 const defaultDurationInSecond = 5
-const defaultDestinationPrefix = "benchmark-test"
+const defaultInputDirectory = "/tmp/benchmark-test"
+const defaultDestinationContainer = "benchmark-test"
 
 func copyFile(srcPath, destPath string) (int64, error) {
 	in, err := os.Open(srcPath)
@@ -40,15 +42,20 @@ func copyFile(srcPath, destPath string) (int64, error) {
 
 func main() {
 	var goroutineCount int
-	var inputDirectory, destinationPrefix string
+	var inputDirectory, destinationContainer string
 
 	flag.IntVar(&goroutineCount, "concurrency", defaultGoroutineCount, "Number of goroutines")
-	flag.StringVar(&inputDirectory, "input-dir", filepath.Join(os.TempDir(), "benchmark-test"), "Input directory")
-	flag.StringVar(&destinationPrefix, "dest-prefix", defaultDestinationPrefix, "Destination prefix")
+	flag.StringVar(&inputDirectory, "input-dir", defaultInputDirectory, "Input directory")
+	flag.StringVar(&destinationContainer, "dest-prefix", defaultDestinationContainer, "Destination Swift container name")
 	flag.Parse()
 
 	files, err := ioutil.ReadDir(inputDirectory)
 	if err != nil {
+		log.Fatal(err)
+	}
+
+	swiftClient := copier.NewSwiftCopier()
+	if err := swiftClient.Setup(); err != nil {
 		log.Fatal(err)
 	}
 
@@ -60,16 +67,11 @@ func main() {
 		wg.Add(1)
 		go func() {
 			for path := range fileChannel {
-				// TODO: use swift.go to copy
-				log.Printf(path)
+				if err := swiftClient.Copy(path, destinationContainer); err != nil {
+					log.Printf("Swift copy error: %s\n", err)
+				}
+				// log.Printf(path)
 			}
-			// for path := range fileChannel {
-			// fileName := uuid.New().String()
-			// size, err := copyFile(inputFile, destFile)
-			// if err != nil {
-			// log.Println("[error]", destFile, err)
-			// }
-			// }
 			wg.Done()
 		}()
 	}
