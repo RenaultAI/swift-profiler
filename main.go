@@ -15,7 +15,6 @@ import (
 
 const defaultGoroutineCount = 16
 const defaultDurationInSecond = 5
-const defaultInputDirectory = "/tmp/benchmark-test"
 const defaultDestinationPrefix = "benchmark-test"
 
 func copyFile(srcPath, destPath string) (int64, error) {
@@ -44,7 +43,7 @@ func main() {
 	var inputDirectory, destinationPrefix string
 
 	flag.IntVar(&goroutineCount, "concurrency", defaultGoroutineCount, "Number of goroutines")
-	flag.StringVar(&inputDirectory, "input-dir", defaultInputDirectory, "Input directory")
+	flag.StringVar(&inputDirectory, "input-dir", filepath.Join(os.TempDir(), "benchmark-test"), "Input directory")
 	flag.StringVar(&destinationPrefix, "dest-prefix", defaultDestinationPrefix, "Destination prefix")
 	flag.Parse()
 
