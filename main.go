@@ -20,17 +20,19 @@ import (
 )
 
 const defaultGoroutineCount = 16
+const defaultNumFiles = 120
 const defaultInputDirectory = "/tmp/benchmark-test"
 const defaultDestinationContainer = "benchmark-test"
 const defaultVerifyChecksum = true
 const defaultPrecomputeChecksum = true
 
 func main() {
-	var goroutineCount int
+	var goroutineCount, numFiles int
 	var inputDirectory, destinationContainer string
 	var precomputeChecksum, verifyChecksum bool
 
 	flag.IntVar(&goroutineCount, "concurrency", defaultGoroutineCount, "Number of goroutines")
+	flag.IntVar(&numFiles, "num-files", defaultNumFiles, "Number of files")
 	flag.StringVar(&inputDirectory, "input-dir", defaultInputDirectory, "Input directory")
 	flag.StringVar(&destinationContainer, "dest-prefix", defaultDestinationContainer, "Destination Swift container name")
 	flag.BoolVar(&verifyChecksum, "verify-checksum", defaultVerifyChecksum, "Whether Swift should verify checksum")
@@ -101,7 +103,7 @@ func main() {
 		}()
 	}
 
-	log.Printf("Copying %d files concurrently\n", len(files))
+	log.Printf("Copying files concurrently\n")
 	byteCount, fileCount := int64(0), 0
 	start := time.Now()
 	for _, file := range files {
@@ -109,6 +111,9 @@ func main() {
 		fileChannel <- path
 		byteCount += file.Size()
 		fileCount++
+		if fileCount >= numFiles {
+			break
+		}
 	}
 	close(fileChannel)
 	wg.Wait()

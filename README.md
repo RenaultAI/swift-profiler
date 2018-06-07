@@ -8,6 +8,8 @@ $ # Update .env with the actual swift credentials
 ```
 
 ## Run Options
+The `concurrency` and `num-files` flags are pretty straightforward.
+
 
 ### Let Swift compute checksum
 Worst performance.
