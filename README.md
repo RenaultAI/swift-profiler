@@ -7,6 +7,20 @@ $ cp env.sample .env
 $ # Update .env with the actual swift credentials
 ```
 
+## Generate Test Files
+
+### Localdisk
+```sh
+$ # copy generate-testfile.sh script to your destination directory
+$ ./generate-testfile.sh
+```
+
+### RAM disk
+```sh
+$ sudo mkdir /mnt/ramdisk && sudo mount -t tmpfs -o size=150g tmpfs /mnt/ramdisk
+$ ./generate-testfile.sh
+```
+
 ## Run Options
 The `concurrency` and `num-files` flags are pretty straightforward.
 
