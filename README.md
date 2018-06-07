@@ -7,6 +7,8 @@ $ cp env.sample .env
 $ # Update .env with the actual swift credentials
 ```
 
+## Run Options
+
 ### Let Swift compute checksum
 Worst performance.
 
@@ -47,4 +49,18 @@ go run main.go -concurrency=16 -input-dir=/tmp/benchmark-test -verify-checksum=f
 2018/06/07 13:03:04 Copying 3 files concurrently
 2018/06/07 13:03:28   3 files 2.1 GB written in 24.621356122s
 2018/06/07 13:03:28   Copy throughput per second: 87 MB
+```
+
+## Performance Test Results
+120 files each 2GB large.
+
+### 16 goroutines - 1.1GB/s
+```
+infra@r201-u33:~/ryoung-test$ ./swift-profiler -concurrency=16 -input-dir=/home/infra/testfiles -verify-checksum=false
+2018/06/07 20:10:12 Swift container metadata: map[]
+2018/06/07 20:10:12 Ignore checksums completely...
+2018/06/07 20:10:12 Spawning 16 goroutines to run
+2018/06/07 20:10:12 Copying 120 files concurrently
+2018/06/07 20:14:14   120 files 258 GB written in 4m1.692408635s
+2018/06/07 20:14:14   Copy throughput per second: 1.1 GB
 ```
