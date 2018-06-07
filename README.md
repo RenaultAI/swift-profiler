@@ -12,6 +12,7 @@ Worst performance.
 
 ```sh
 go run main.go -concurrency=16 -input-dir=/tmp/benchmark-test -precompute-checksum=false
+2018/06/07 11:40:32 Listening on 0.0.0.0:6060
 2018/06/07 11:40:32 Swift container metadata: map[]
 2018/06/07 11:40:32 Letting Swift compute checksum...
 2018/06/07 11:40:32 Spawning 16 goroutines to run
@@ -25,6 +26,7 @@ Decent performance.
 
 ```sh
 go run main.go -concurrency=16 -input-dir=/tmp/benchmark-test -precompute-checksum=true
+2018/06/07 13:02:09 Listening on 0.0.0.0:6060
 2018/06/07 13:02:09 Swift container metadata: map[]
 2018/06/07 13:02:09 Precomputing checksum...
 2018/06/07 13:02:12 Spawning 16 goroutines to run
@@ -38,6 +40,7 @@ Speed up the test.
 
 ```sh
 go run main.go -concurrency=16 -input-dir=/tmp/benchmark-test -verify-checksum=false
+2018/06/07 13:03:04 Listening on 0.0.0.0:6060
 2018/06/07 13:03:04 Swift container metadata: map[]
 2018/06/07 13:03:04 Ignore checksums completely...
 2018/06/07 13:03:04 Spawning 16 goroutines to run

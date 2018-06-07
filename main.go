@@ -38,7 +38,9 @@ func main() {
 	flag.Parse()
 
 	go func() {
-		log.Println(http.ListenAndServe("localhost:6060", nil))
+		hostPort := "0.0.0.0:6060"
+		log.Printf("Listening on %s\n", hostPort)
+		log.Println(http.ListenAndServe(hostPort, nil))
 	}()
 
 	files, err := ioutil.ReadDir(inputDirectory)
