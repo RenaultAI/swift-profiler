@@ -64,3 +64,15 @@ infra@r201-u33:~/ryoung-test$ ./swift-profiler -concurrency=16 -input-dir=/home/
 2018/06/07 20:14:14   120 files 258 GB written in 4m1.692408635s
 2018/06/07 20:14:14   Copy throughput per second: 1.1 GB
 ```
+
+### 32 goroutines - 2.2GB/s
+```
+infra@r201-u33:~/ryoung-test$ ./swift-profiler -concurrency=32 -input-dir=/home/infra/testfiles -verify-checksum=false
+2018/06/07 20:22:45 Listening on 0.0.0.0:6060
+2018/06/07 20:22:45 Swift container metadata: map[]
+2018/06/07 20:22:45 Ignore checksums completely...
+2018/06/07 20:22:45 Spawning 32 goroutines to run
+2018/06/07 20:22:45 Copying 120 files concurrently
+2018/06/07 20:24:42   120 files 258 GB written in 1m57.356396652s
+2018/06/07 20:24:42   Copy throughput per second: 2.2 GB
+```
