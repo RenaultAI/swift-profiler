@@ -2,11 +2,14 @@ package main
 
 import (
 	"crypto/md5"
+	_ "expvar"
 	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"path/filepath"
 	"sync"
@@ -31,6 +34,10 @@ func main() {
 	flag.StringVar(&destinationContainer, "dest-prefix", defaultDestinationContainer, "Destination Swift container name")
 	flag.BoolVar(&precomputeChecksum, "precompute-checksum", defaultPrecomputeChecksum, "Pre-compute checksum beforehand")
 	flag.Parse()
+
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
 
 	files, err := ioutil.ReadDir(inputDirectory)
 	if err != nil {
