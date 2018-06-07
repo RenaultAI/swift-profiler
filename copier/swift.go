@@ -66,7 +66,7 @@ func (c *swiftCopier) Setup() error {
 }
 
 // Write implements Copier.Write.
-func (c *swiftCopier) Copy(sourcePath, destinationContainer string, checksum *string) error {
+func (c *swiftCopier) Copy(sourcePath, destinationContainer string, verifyChecksum bool, checksum *string) error {
 	// Open the file.
 	sourceFile, err := os.Open(sourcePath)
 	if err != nil {
@@ -77,10 +77,17 @@ func (c *swiftCopier) Copy(sourcePath, destinationContainer string, checksum *st
 	// Prepare for the upload.
 	objectName := filepath.Base(sourcePath)
 	var options objects.CreateOpts
-	if checksum == nil {
-		options = objects.CreateOpts{ContentType: "application/octet-stream", Content: sourceFile}
+	if verifyChecksum {
+		if checksum == nil {
+			// Swift computes checksum.
+			options = objects.CreateOpts{ContentType: "application/octet-stream", Content: sourceFile}
+		} else {
+			// Use our pre-computed checksum.
+			options = objects.CreateOpts{ContentType: "application/octet-stream", Content: sourceFile, ETag: *checksum}
+		}
 	} else {
-		options = objects.CreateOpts{ContentType: "application/octet-stream", Content: sourceFile, ETag: *checksum}
+		// Ignore checksum completely.
+		options = objects.CreateOpts{ContentType: "application/octet-stream", Content: sourceFile, NoETag: true}
 	}
 
 	// Execute the upload.

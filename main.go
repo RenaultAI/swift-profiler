@@ -22,16 +22,18 @@ import (
 const defaultGoroutineCount = 16
 const defaultInputDirectory = "/tmp/benchmark-test"
 const defaultDestinationContainer = "benchmark-test"
+const defaultVerifyChecksum = true
 const defaultPrecomputeChecksum = true
 
 func main() {
 	var goroutineCount int
 	var inputDirectory, destinationContainer string
-	var precomputeChecksum bool
+	var precomputeChecksum, verifyChecksum bool
 
 	flag.IntVar(&goroutineCount, "concurrency", defaultGoroutineCount, "Number of goroutines")
 	flag.StringVar(&inputDirectory, "input-dir", defaultInputDirectory, "Input directory")
 	flag.StringVar(&destinationContainer, "dest-prefix", defaultDestinationContainer, "Destination Swift container name")
+	flag.BoolVar(&verifyChecksum, "verify-checksum", defaultVerifyChecksum, "Whether Swift should verify checksum")
 	flag.BoolVar(&precomputeChecksum, "precompute-checksum", defaultPrecomputeChecksum, "Pre-compute checksum beforehand")
 	flag.Parse()
 
@@ -51,25 +53,29 @@ func main() {
 
 	// Pre-compute md5 checksums and pass them to the copier.
 	checksums := make(map[string]string, len(files))
-	if precomputeChecksum {
-		log.Printf("Precomputing checksum...\n")
-		for _, file := range files {
-			path := filepath.Join(inputDirectory, file.Name())
-			f, err := os.Open(path)
-			if err != nil {
-				log.Fatal(err)
-			}
-			defer f.Close()
+	if verifyChecksum {
+		if precomputeChecksum {
+			log.Printf("Precomputing checksum...\n")
+			for _, file := range files {
+				path := filepath.Join(inputDirectory, file.Name())
+				f, err := os.Open(path)
+				if err != nil {
+					log.Fatal(err)
+				}
+				defer f.Close()
 
-			h := md5.New()
-			if _, err := io.Copy(h, f); err != nil {
-				log.Fatal(err)
-			}
+				h := md5.New()
+				if _, err := io.Copy(h, f); err != nil {
+					log.Fatal(err)
+				}
 
-			checksums[path] = fmt.Sprintf("%x", h.Sum(nil))
+				checksums[path] = fmt.Sprintf("%x", h.Sum(nil))
+			}
+		} else {
+			log.Printf("Letting Swift compute checksum...\n")
 		}
 	} else {
-		log.Printf("Letting Swift compute checksum...\n")
+		log.Printf("Ignore checksums completely...\n")
 	}
 
 	var wg sync.WaitGroup
@@ -85,10 +91,9 @@ func main() {
 					sum := checksums[path]
 					md5 = &sum
 				}
-				if err := swiftClient.Copy(path, destinationContainer, md5); err != nil {
+				if err := swiftClient.Copy(path, destinationContainer, verifyChecksum, md5); err != nil {
 					log.Printf("Swift copy error: %s\n", err)
 				}
-				// log.Printf(path)
 			}
 			wg.Done()
 		}()
